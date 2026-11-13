@@ -1,0 +1,21 @@
+// CmdDrawIndexed @180de40d0 xrefs:
+  from 18031f664 in FUN_18031e0dc @ 18031e0dc
+  from 18031f66b in FUN_18031e0dc @ 18031e0dc
+// CmdDraw @180de6768 xrefs:
+  from 18031f656 in FUN_18031e0dc @ 18031e0dc
+  from 18031f65d in FUN_18031e0dc @ 18031e0dc
+// QueueSubmit @180de3fa0 xrefs:
+  from 180322c79 in FUN_18031e0dc @ 18031e0dc
+  from 180322c80 in FUN_18031e0dc @ 18031e0dc
+// CmdBindDescriptorSets @180de1c80 xrefs:
+  from 18031eeff in FUN_18031e0dc @ 18031e0dc
+  from 18031ef21 in FUN_18031e0dc @ 18031e0dc
+// CmdPipelineBarrier @180de3c40 xrefs:
+  from 18031fb6a in FUN_18031e0dc @ 18031e0dc
+  from 18031fbc3 in FUN_18031e0dc @ 18031e0dc
+// CmdBeginRenderPass @180de2180 xrefs:
+  from 18031ed6d in FUN_18031e0dc @ 18031e0dc
+  from 18031ed99 in FUN_18031e0dc @ 18031e0dc
+// CmdEndRenderPass @180de4560 xrefs:
+  from 18031f91e in FUN_18031e0dc @ 18031e0dc
+  from 18031f94a in FUN_18031e0dc @ 18031e0dc

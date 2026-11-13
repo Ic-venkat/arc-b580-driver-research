@@ -72,7 +72,9 @@ Full per-frame capture logs (`.csv`) and computed summaries are available in [`d
 │   ├── 02-frame-capture-analysis.md        # PresentMon frame pacing analysis
 │   ├── 03-driver-re-notes-igvk64.md        # Vulkan UMD dispatch architecture
 │   ├── 04-dispatch-map-and-hotpath.md      # Dynamic dispatch map (229 commands resolved)
-│   └── 05-driver-affinity-manipulation.md  # Detailed disassembly & SetProcessAffinityMask analysis
+│   ├── 05-driver-affinity-manipulation.md  # Detailed disassembly & SetProcessAffinityMask analysis
+│   └── 06-draw-pipeline-overhead.md        # Draw-call pipeline overhead & mid-frame flushing
+├── LICENSE                                 # MIT License
 ├── data/
 │   ├── captures/                           # Raw PresentMon CSV frame captures (50k+ frames)
 │   ├── metrics/                            # Percentile analysis (p50, p90, p99, averages)

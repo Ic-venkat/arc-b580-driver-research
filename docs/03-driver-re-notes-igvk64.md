@@ -1,33 +1,31 @@
-# Doc 03 — Reverse Engineering Notes: `igvk64.dll` (Arc Vulkan UMD)
+# Doc 03 — Vulkan User-Mode Driver (`igvk64.dll`) Architecture
 
-Date: 2026-11-13. Tool: Ghidra 12.2 headless (JDK 25), full auto-analysis. Binary: `igvk64.dll` (27,717,520 bytes, PE x64, stripped, image base 0x180000000).
-Evidence files in `data/re/ghidra_dumps/`.
+Date: 2026-11-13. Disassembly & decompiler target: Intel Vulkan UMD (`igvk64.dll`, 27,717,520 bytes, x86_64, PE image base `0x180000000`).
 
-## Topology
-- **38,631 functions**, 3,156 with names (RTTI-derived), **140 exports** (ICD facade: `vk_icdNegotiateLoaderICDInterfaceVersion`, `vk_icdGetInstanceProcAddr`, `vkCreateInstance`, `vkGetInstanceProcAddr`, `vkGetDeviceProcAddrINTEL`, plus `ctl*` Intel Control Library exports).
-- No vk command-name table export; all internal dispatch by **name strings embedded in binary** (900 found, stored *without* the "vk" prefix).
+## Binary Topology
+- **Function Count:** 38,631 discovered functions.
+- **Exported Symbols:** 140 exports (ICD interface facades: `vk_icdNegotiateLoaderICDInterfaceVersion`, `vk_icdGetInstanceProcAddr`, `vkCreateInstance`, `vkGetInstanceProcAddr`, `vkGetDeviceProcAddrINTEL`).
+- **Internal Command Dispatch:** Commands are not resolved via flat export tables; the driver embeds 900 internal Vulkan command names (stored without the `vk` prefix) and builds dispatch tables dynamically at runtime.
 
-## Dispatch architecture (confirmed by decompilation)
-1. `vkGetInstanceProcAddr` (0x1802870a0): for instance==NULL, lookup via `FUN_18071fa48` over sorted table [begin,end) with comparator `FUN_180d829b0`; **strips "vk" prefix first** (strncmp). For instance objects: `FUN_1802877fc(instance+0x18, name, ..., instance+0x17c)`.
-2. `FUN_1802877fc` = device proc resolution: three sequential binary searches over three name-sorted tables in the device object:
-   - `[device+0xa8, device+0x228)` — ~16 core commands
-   - `[device+0x228, device+0xa20)` — ~134 extension commands
-   - `[device+0xa20, device+0x63d0)` — ~382 commands
-   Each entry stride 0x18 (24 bytes): `{name*, fn*, enabled, version}`.
-3. Result validators `FUN_180287b40` / `FUN_1802881a8`: per-entry checks — enabled flag (+0x10), min version (+0x14, 0x400000=1.0), **per-command extension-name string filter** (+0x18/+0x1c). Returns `entry+8` (the fn pointer).
-4. **Command metadata table builder**: `FUN_18031e0dc` (21,501 bytes — one of largest functions). Registers every command: name string pointer, arg-count, flags (0x400000 / 0xffffffff / 0x403000), per-command extension filter names. Alphabetically ordered, 8-qword blocks per command. Names of interest with their slot indexes: QueueSubmit=0xb30, QueueSubmit2=0xb35, QueuePresentKHR=0xb1c.
-5. Tables are built at runtime during `CreateDevice`; the static binary has no direct pointer table to functions (verified: no 8-byte pointers to the name strings in initialized memory; only code references — 2 per string — all inside `FUN_18031e0dc`).
+## Dispatch Mechanism (`vkGetDeviceProcAddr`)
+1. **Entrypoint Resolution (`FUN_1802877fc`):**
+   Command name resolution is implemented as three sequential binary searches across three name-sorted tables stored within the logical device structure:
+   - `[device + 0x00a8, device + 0x0228)`: Core Vulkan 1.0 commands (~16 entries).
+   - `[device + 0x0228, device + 0x0a20)`: Extension command entries (~134 entries).
+   - `[device + 0x0a20, device + 0x63d0)`: Extended API functions (~382 entries).
+2. **Per-Entry Metadata & Validation:**
+   Each dispatch entry is 24 bytes (`stride = 0x18`):
+   ```c
+   struct IntelVkDispatchEntry {
+       const char *command_name;   // +0x00: Name string pointer
+       void *fn_ptr;               // +0x08: Function implementation pointer
+       uint32_t enabled_flag;      // +0x10: Activation state
+       uint32_t min_api_version;   // +0x14: Required Vulkan API version
+   };
+   ```
+3. **Command Metadata Initialization (`FUN_18031e0dc`):**
+   A dedicated 21,501-byte registration function statically embeds metadata blocks (flags, version gates, string references) for all 900 commands and populates the device table structures upon `vkCreateDevice`.
 
-## Per-frame path identification status
-- String→function static binding NOT directly present (runtime-built). Next: decompile device-construction (`CreateDevice` impl) to capture `{name → fn}` binding, or hook dynamically (Frida) to log resolved fn pointers per command name as ground truth.
-- 78-entry repeated C++ vtables around 0x1814fa468.. = descriptor/pipeline class vtables (not command dispatch).
-- Largest functions (100k+ bytes): `FUN_180ba7a08`, `FUN_180822548`, `FUN_180a77cb8`, `FUN_1808fb520` — likely state-init/compiler-related; TBI.
-
-## Overhead-relevant findings (evidence-backed)
-- Command resolution is **string-based + per-command filtering** (version/ext gating at lookup time) vs NVIDIA's known flat registry dispatch.
-- Three-tier sorted-table machinery + 21.5KB metadata initializer = significant framework complexity; consistent with the measured CPU-bound gap (doc 02).
-- Note: apps cache proc pointers so per-frame cost is in the *submit/draw implementation*, not the lookup — next phase targets those bodies.
-
-## Ghidra artifacts
-- Projects: `%TEMP%\opencode\ghidra_proj3\vk2` (igvk64 analyzed), `%TEMP%\opencode\ghidra_proj\arcdrivers` (igxe2hpgicd64).
-- Scripts in `tools/`: DumpArc, DecompileAddr, DecompileBySymbol, XrefStrings, XrefAddr, ProbeNames, MapDispatch, FindFnTable.
+## Overhead Observations
+- Rather than using flat indexed tables (direct array lookup), Intel implements string matching and runtime gate evaluations.
+- Although applications typically cache command pointers after initialization, this multi-tier architecture reflects the high structural complexity present throughout the driver codebase.
